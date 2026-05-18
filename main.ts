@@ -23,7 +23,7 @@ interface ImageTarget {
   match: ImageMatch;
 }
 
-interface ImageAlignmentMenuSettings {
+interface ImageAlignmentSettings {
   defaultAlignment: ImageAlignment;
 }
 
@@ -33,7 +33,7 @@ const ALIGNMENT_LABELS: Record<ImageAlignment, string> = {
   right: "右对齐"
 };
 
-const DEFAULT_SETTINGS: ImageAlignmentMenuSettings = {
+const DEFAULT_SETTINGS: ImageAlignmentSettings = {
   defaultAlignment: "center"
 };
 
@@ -41,12 +41,12 @@ const WIKI_IMAGE_PATTERN = /!\[\[([^\]]+)\]\]/g;
 const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\(([^)]+)\)/g;
 const ALIGNMENT_TOKENS = new Set(["left", "right", "center"]);
 
-export default class ImageAlignmentMenuPlugin extends Plugin {
-  settings: ImageAlignmentMenuSettings = DEFAULT_SETTINGS;
+export default class ImageAlignmentPlugin extends Plugin {
+  settings: ImageAlignmentSettings = DEFAULT_SETTINGS;
 
   async onload(): Promise<void> {
     await this.loadSettings();
-    this.addSettingTab(new ImageAlignmentMenuSettingTab(this.app, this));
+    this.addSettingTab(new ImageAlignmentSettingTab(this.app, this));
     this.applyDefaultAlignmentClass();
 
     this.addCommand({
@@ -181,18 +181,19 @@ export default class ImageAlignmentMenuPlugin extends Plugin {
 
   applyDefaultAlignmentClass(): void {
     this.clearDefaultAlignmentClasses();
-    document.body.classList.add(`image-alignment-menu-default-${this.settings.defaultAlignment}`);
+    document.body.classList.add(`image-alignment-default-${this.settings.defaultAlignment}`);
   }
 
   private clearDefaultAlignmentClasses(): void {
     for (const alignment of ["center", "left", "right"] as const) {
+      document.body.classList.remove(`image-alignment-default-${alignment}`);
       document.body.classList.remove(`image-alignment-menu-default-${alignment}`);
     }
   }
 }
 
-class ImageAlignmentMenuSettingTab extends PluginSettingTab {
-  constructor(app: App, private readonly plugin: ImageAlignmentMenuPlugin) {
+class ImageAlignmentSettingTab extends PluginSettingTab {
+  constructor(app: App, private readonly plugin: ImageAlignmentPlugin) {
     super(app, plugin);
   }
 
