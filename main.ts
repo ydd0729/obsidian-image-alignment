@@ -1,9 +1,12 @@
 import {
+  App,
   Editor,
   MarkdownView,
   Menu,
   Notice,
   Plugin,
+  PluginSettingTab,
+  Setting,
 } from "obsidian";
 
 type ImageAlignment = "center" | "left" | "right";
@@ -20,10 +23,18 @@ interface ImageTarget {
   match: ImageMatch;
 }
 
+interface ImageAlignmentMenuSettings {
+  defaultAlignment: ImageAlignment;
+}
+
 const ALIGNMENT_LABELS: Record<ImageAlignment, string> = {
   center: "居中",
   left: "左对齐",
   right: "右对齐"
+};
+
+const DEFAULT_SETTINGS: ImageAlignmentMenuSettings = {
+  defaultAlignment: "center"
 };
 
 const WIKI_IMAGE_PATTERN = /!\[\[([^\]]+)\]\]/g;
@@ -31,7 +42,13 @@ const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\(([^)]+)\)/g;
 const ALIGNMENT_TOKENS = new Set(["left", "right", "center"]);
 
 export default class ImageAlignmentMenuPlugin extends Plugin {
+  settings: ImageAlignmentMenuSettings = DEFAULT_SETTINGS;
+
   async onload(): Promise<void> {
+    await this.loadSettings();
+    this.addSettingTab(new ImageAlignmentMenuSettingTab(this.app, this));
+    this.applyDefaultAlignmentClass();
+
     this.addCommand({
       id: "align-current-image-left",
       name: "Set current image left aligned",
@@ -61,6 +78,10 @@ export default class ImageAlignmentMenuPlugin extends Plugin {
     );
   }
 
+  onunload(): void {
+    this.clearDefaultAlignmentClasses();
+  }
+
   private alignImageAtCursor(editor: Editor, alignment: ImageAlignment): void {
     const cursor = editor.getCursor();
     const line = editor.getLine(cursor.line);
@@ -72,7 +93,7 @@ export default class ImageAlignmentMenuPlugin extends Plugin {
     }
 
     editor.replaceRange(
-      setImageAlignment(match.value, alignment),
+      setImageAlignment(match.value, alignment, this.settings.defaultAlignment),
       { line: cursor.line, ch: match.from },
       { line: cursor.line, ch: match.to }
     );
@@ -139,11 +160,60 @@ export default class ImageAlignmentMenuPlugin extends Plugin {
 
   private alignImageTarget(target: ImageTarget, alignment: ImageAlignment): void {
     target.editor.replaceRange(
-      setImageAlignment(target.match.value, alignment),
+      setImageAlignment(target.match.value, alignment, this.settings.defaultAlignment),
       { line: target.line, ch: target.match.from },
       { line: target.line, ch: target.match.to }
     );
     new Notice(`图片已设置为${ALIGNMENT_LABELS[alignment]}。`);
+  }
+
+  async loadSettings(): Promise<void> {
+    this.settings = {
+      ...DEFAULT_SETTINGS,
+      ...(await this.loadData())
+    };
+  }
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+    this.applyDefaultAlignmentClass();
+  }
+
+  applyDefaultAlignmentClass(): void {
+    this.clearDefaultAlignmentClasses();
+    document.body.classList.add(`image-alignment-menu-default-${this.settings.defaultAlignment}`);
+  }
+
+  private clearDefaultAlignmentClasses(): void {
+    for (const alignment of ["center", "left", "right"] as const) {
+      document.body.classList.remove(`image-alignment-menu-default-${alignment}`);
+    }
+  }
+}
+
+class ImageAlignmentMenuSettingTab extends PluginSettingTab {
+  constructor(app: App, private readonly plugin: ImageAlignmentMenuPlugin) {
+    super(app, plugin);
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+
+    new Setting(containerEl)
+      .setName("默认图片对齐")
+      .setDesc("没有显式对齐标记的图片会使用这个默认值。")
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("center", "居中")
+          .addOption("left", "左对齐")
+          .addOption("right", "右对齐")
+          .setValue(this.plugin.settings.defaultAlignment)
+          .onChange(async (value) => {
+            this.plugin.settings.defaultAlignment = value as ImageAlignment;
+            await this.plugin.saveSettings();
+          });
+      });
   }
 }
 
@@ -233,20 +303,28 @@ function distanceToRange(ch: number, from: number, to: number): number {
   return 0;
 }
 
-function setImageAlignment(markdown: string, alignment: ImageAlignment): string {
+function setImageAlignment(
+  markdown: string,
+  alignment: ImageAlignment,
+  defaultAlignment: ImageAlignment
+): string {
   if (markdown.startsWith("![[")) {
-    return setWikiImageAlignment(markdown, alignment);
+    return setWikiImageAlignment(markdown, alignment, defaultAlignment);
   }
-  return setMarkdownImageAlignment(markdown, alignment);
+  return setMarkdownImageAlignment(markdown, alignment, defaultAlignment);
 }
 
-function setWikiImageAlignment(markdown: string, alignment: ImageAlignment): string {
+function setWikiImageAlignment(
+  markdown: string,
+  alignment: ImageAlignment,
+  defaultAlignment: ImageAlignment
+): string {
   const inner = markdown.slice(3, -2);
   const parts = inner.split("|");
   const target = parts.shift() ?? "";
   const modifiers = removeAlignmentTokens(parts);
 
-  if (alignment !== "center") {
+  if (alignment !== defaultAlignment) {
     modifiers.push(alignment);
   }
 
@@ -255,7 +333,11 @@ function setWikiImageAlignment(markdown: string, alignment: ImageAlignment): str
     : `![[${target}]]`;
 }
 
-function setMarkdownImageAlignment(markdown: string, alignment: ImageAlignment): string {
+function setMarkdownImageAlignment(
+  markdown: string,
+  alignment: ImageAlignment,
+  defaultAlignment: ImageAlignment
+): string {
   const match = markdown.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
   if (!match) {
     return markdown;
@@ -263,7 +345,7 @@ function setMarkdownImageAlignment(markdown: string, alignment: ImageAlignment):
 
   const altParts = match[1].split("|").filter((part) => part.length > 0);
   const alt = removeAlignmentTokens(altParts);
-  if (alignment !== "center") {
+  if (alignment !== defaultAlignment) {
     alt.push(alignment);
   }
 

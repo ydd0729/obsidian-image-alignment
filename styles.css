@@ -1,0 +1,54 @@
+body.image-alignment-menu-default-center .markdown-preview-view .image-embed:not([alt*="left"]):not([alt*="right"]),
+body.image-alignment-menu-default-center .markdown-preview-view .image-embed[alt*="center"] {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+body.image-alignment-menu-default-left .markdown-preview-view .image-embed:not([alt*="center"]):not([alt*="right"]),
+body.image-alignment-menu-default-left .markdown-preview-view .image-embed[alt*="left"] {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+body.image-alignment-menu-default-right .markdown-preview-view .image-embed:not([alt*="center"]):not([alt*="left"]),
+body.image-alignment-menu-default-right .markdown-preview-view .image-embed[alt*="right"] {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+body.image-alignment-menu-default-center .markdown-source-view.mod-cm6.is-live-preview .cm-content {
+  text-align: center !important;
+}
+
+body.image-alignment-menu-default-left .markdown-source-view.mod-cm6.is-live-preview .cm-content {
+  text-align: left !important;
+}
+
+body.image-alignment-menu-default-right .markdown-source-view.mod-cm6.is-live-preview .cm-content {
+  text-align: right !important;
+}
+
+body.image-alignment-menu-default-center .markdown-source-view.mod-cm6.is-live-preview .cm-embed-block:has(.image-embed:not([alt*="left"]):not([alt*="right"])),
+body.image-alignment-menu-default-center .markdown-source-view.mod-cm6.is-live-preview .cm-embed-block:has(.image-embed[alt*="center"]) {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+body.image-alignment-menu-default-left .markdown-source-view.mod-cm6.is-live-preview .cm-embed-block:has(.image-embed:not([alt*="center"]):not([alt*="right"])),
+body.image-alignment-menu-default-left .markdown-source-view.mod-cm6.is-live-preview .cm-embed-block:has(.image-embed[alt*="left"]) {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+body.image-alignment-menu-default-right .markdown-source-view.mod-cm6.is-live-preview .cm-embed-block:has(.image-embed:not([alt*="center"]):not([alt*="left"])),
+body.image-alignment-menu-default-right .markdown-source-view.mod-cm6.is-live-preview .cm-embed-block:has(.image-embed[alt*="right"]) {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+body.image-alignment-menu-default-center .markdown-source-view.mod-cm6.is-live-preview .internal-embed.image-embed[alt*="center"],
+body.image-alignment-menu-default-left .markdown-source-view.mod-cm6.is-live-preview .internal-embed.image-embed[alt*="center"],
+body.image-alignment-menu-default-right .markdown-source-view.mod-cm6.is-live-preview .internal-embed.image-embed[alt*="center"] {
+  position: static !important;
+  transform: none !important;
+}
