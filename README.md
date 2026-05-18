@@ -4,7 +4,7 @@ Adds quick controls for image alignment in a vault that uses `alt` markers such 
 
 ## Usage
 
-- Right-click an image in live preview and choose `图片左对齐`, `图片居中`, or `图片右对齐`.
+- Right-click an image in live preview and choose `Align image left`, `Align image center`, or `Align image right`.
 - Use commands from the command palette:
   - `Set current image left aligned`
   - `Set current image centered`
@@ -15,7 +15,7 @@ Adds quick controls for image alignment in a vault that uses `alt` markers such 
 - `Ctrl/Cmd+Alt+Shift+Right`: right align the image on the current line.
 - Set the global default alignment in the plugin settings. Images without an explicit `left`, `right`, or `center` marker use that default.
 
-The plugin edits image Markdown directly. Wiki embeds become values such as `![[image.png|left]]`; standard Markdown images become values such as `![alt|right](image.png)`.
+The plugin edits image Markdown directly. Wiki embeds become values such as `![[image.png|left|300]]`; standard Markdown images become values such as `![right|alt](image.png)`. Existing image size markers are preserved.
 
 ## Development
 

@@ -7,13 +7,10 @@ import {
   Plugin,
   PluginSettingTab,
   Setting,
-  type Hotkey,
-  type Modifier,
 } from "obsidian";
 
 type ImageAlignment = "center" | "left" | "right";
 type PluginLanguage = "en" | "zh";
-type AlignmentHotkeys = Record<ImageAlignment, string>;
 
 interface ImageMatch {
   from: number;
@@ -29,17 +26,11 @@ interface ImageTarget {
 
 interface ImageAlignmentSettings {
   defaultAlignment: ImageAlignment;
-  hotkeys: AlignmentHotkeys;
   language: PluginLanguage;
 }
 
 const DEFAULT_SETTINGS: ImageAlignmentSettings = {
   defaultAlignment: "center",
-  hotkeys: {
-    center: "Mod+Alt+Shift+ArrowDown",
-    left: "Mod+Alt+Shift+ArrowLeft",
-    right: "Mod+Alt+Shift+ArrowRight"
-  },
   language: "en"
 };
 
@@ -167,34 +158,29 @@ export default class ImageAlignmentPlugin extends Plugin {
     this.addCommand({
       id: getAlignmentCommandId("left"),
       name: this.getText().commandLeft,
-      hotkeys: getCommandHotkeys(this.settings.hotkeys.left),
+      hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowLeft" }],
       editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "left")
     });
 
     this.addCommand({
       id: getAlignmentCommandId("center"),
       name: this.getText().commandCenter,
-      hotkeys: getCommandHotkeys(this.settings.hotkeys.center),
+      hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowDown" }],
       editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "center")
     });
 
     this.addCommand({
       id: getAlignmentCommandId("right"),
       name: this.getText().commandRight,
-      hotkeys: getCommandHotkeys(this.settings.hotkeys.right),
+      hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowRight" }],
       editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "right")
     });
   }
 
   async loadSettings(): Promise<void> {
-    const loadedSettings = await this.loadData();
     this.settings = {
       ...DEFAULT_SETTINGS,
-      ...loadedSettings,
-      hotkeys: {
-        ...DEFAULT_SETTINGS.hotkeys,
-        ...(loadedSettings?.hotkeys ?? {})
-      }
+      ...(await this.loadData())
     };
   }
 
@@ -255,69 +241,6 @@ class ImageAlignmentSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
-
-    for (const alignment of ["left", "center", "right"] as const) {
-      this.addHotkeySetting(alignment);
-    }
-  }
-
-  private addHotkeySetting(alignment: ImageAlignment): void {
-    const text = this.plugin.getText();
-    const setting = new Setting(this.containerEl)
-      .setName(text.hotkeyName(alignment))
-      .setDesc(text.hotkeyDesc);
-
-    setting.addText((input) => {
-      input
-        .setValue(formatHotkey(this.plugin.settings.hotkeys[alignment], text))
-        .setDisabled(true);
-    });
-
-    setting.addButton((button) => {
-      button
-        .setButtonText(text.recordHotkey)
-        .onClick(() => this.captureHotkey(alignment, button.buttonEl));
-    });
-
-    setting.addButton((button) => {
-      button
-        .setButtonText(text.clearHotkey)
-        .onClick(async () => {
-          this.plugin.settings.hotkeys[alignment] = "";
-          await this.plugin.saveSettings();
-          this.display();
-        });
-    });
-  }
-
-  private captureHotkey(alignment: ImageAlignment, buttonEl: HTMLButtonElement): void {
-    const text = this.plugin.getText();
-    buttonEl.setText(text.pressHotkey);
-
-    const abortController = new AbortController();
-    window.addEventListener(
-      "keydown",
-      async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const hotkey = hotkeyFromEvent(event);
-        abortController.abort();
-
-        if (!hotkey) {
-          buttonEl.setText(text.recordHotkey);
-          return;
-        }
-
-        this.plugin.settings.hotkeys[alignment] = hotkey;
-        await this.plugin.saveSettings();
-        this.display();
-      },
-      {
-        capture: true,
-        signal: abortController.signal
-      }
-    );
   }
 }
 
@@ -333,12 +256,6 @@ interface PluginText {
   languageName: string;
   menuTitle(alignment: ImageAlignment): string;
   noImage: string;
-  clearHotkey: string;
-  hotkeyDesc: string;
-  hotkeyName(alignment: ImageAlignment): string;
-  noHotkey: string;
-  pressHotkey: string;
-  recordHotkey: string;
 }
 
 const PLUGIN_TEXT: Record<PluginLanguage, PluginText> = {
@@ -358,13 +275,7 @@ const PLUGIN_TEXT: Record<PluginLanguage, PluginText> = {
     languageDesc: "Controls the plugin menus, settings, commands, and notices.",
     languageName: "Language",
     menuTitle: (alignment) => `Align image ${PLUGIN_TEXT.en.alignmentLabels[alignment].toLowerCase()}`,
-    noImage: "No image found on the current selection or cursor line.",
-    clearHotkey: "Clear",
-    hotkeyDesc: "Press Record, then press the shortcut to use for this alignment.",
-    hotkeyName: (alignment) => `${PLUGIN_TEXT.en.alignmentLabels[alignment]} hotkey`,
-    noHotkey: "None",
-    pressHotkey: "Press keys...",
-    recordHotkey: "Record"
+    noImage: "No image found on the current selection or cursor line."
   },
   zh: {
     alignmentLabels: {
@@ -381,13 +292,7 @@ const PLUGIN_TEXT: Record<PluginLanguage, PluginText> = {
     languageDesc: "控制插件菜单、设置、命令和通知的显示语言。",
     languageName: "语言",
     menuTitle: (alignment) => `图片${PLUGIN_TEXT.zh.alignmentLabels[alignment]}`,
-    noImage: "当前选区或光标所在行没有可设置对齐的图片。",
-    clearHotkey: "清除",
-    hotkeyDesc: "点击录入，然后按下这个对齐方向要使用的快捷键。",
-    hotkeyName: (alignment) => `${PLUGIN_TEXT.zh.alignmentLabels[alignment]}快捷键`,
-    noHotkey: "无",
-    pressHotkey: "请按快捷键...",
-    recordHotkey: "录入"
+    noImage: "当前选区或光标所在行没有可设置对齐的图片。"
   }
 };
 
@@ -512,71 +417,8 @@ function distanceToRange(ch: number, from: number, to: number): number {
   return 0;
 }
 
-function hotkeyFromEvent(event: KeyboardEvent): string | null {
-  const key = normalizeHotkeyKey(event.key);
-  if (!key) {
-    return null;
-  }
-
-  const modifiers: string[] = [];
-  if (event.ctrlKey || event.metaKey) {
-    modifiers.push("Mod");
-  }
-  if (event.altKey) {
-    modifiers.push("Alt");
-  }
-  if (event.shiftKey) {
-    modifiers.push("Shift");
-  }
-
-  return [...modifiers, key].join("+");
-}
-
-function normalizeHotkeyKey(key: string): string | null {
-  if (["Control", "Meta", "Alt", "Shift"].includes(key)) {
-    return null;
-  }
-
-  if (key.length === 1) {
-    return key.toUpperCase();
-  }
-
-  return key;
-}
-
-function formatHotkey(hotkey: string, text: PluginText): string {
-  return hotkey || text.noHotkey;
-}
-
 function getAlignmentCommandId(alignment: ImageAlignment): string {
   return `align-current-image-${alignment}`;
-}
-
-function getCommandHotkeys(hotkey: string): Hotkey[] {
-  const parsedHotkey = parseHotkey(hotkey);
-  return parsedHotkey ? [parsedHotkey] : [];
-}
-
-function parseHotkey(hotkey: string): Hotkey | null {
-  const parts = hotkey.split("+").filter((part) => part.length > 0);
-  const key = parts.pop();
-  if (!key) {
-    return null;
-  }
-
-  const modifiers = parts.filter(isModifier);
-  if (modifiers.length !== parts.length) {
-    return null;
-  }
-
-  return {
-    key,
-    modifiers
-  };
-}
-
-function isModifier(value: string): value is Modifier {
-  return ["Mod", "Ctrl", "Meta", "Shift", "Alt"].includes(value);
 }
 
 function setImageAlignment(
@@ -601,7 +443,7 @@ function setWikiImageAlignment(
   const modifiers = removeAlignmentTokens(parts);
 
   if (alignment !== defaultAlignment) {
-    modifiers.push(alignment);
+    modifiers.unshift(alignment);
   }
 
   return modifiers.length > 0
@@ -622,7 +464,7 @@ function setMarkdownImageAlignment(
   const altParts = match[1].split("|").filter((part) => part.length > 0);
   const alt = removeAlignmentTokens(altParts);
   if (alignment !== defaultAlignment) {
-    alt.push(alignment);
+    alt.unshift(alignment);
   }
 
   return `![${alt.join("|")}](${match[2]})`;
