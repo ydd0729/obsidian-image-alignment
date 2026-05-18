@@ -1,9 +1,9 @@
 import {
   Editor,
   MarkdownView,
+  Menu,
   Notice,
   Plugin,
-  TFile
 } from "obsidian";
 
 type ImageAlignment = "center" | "left" | "right";
@@ -12,6 +12,12 @@ interface ImageMatch {
   from: number;
   to: number;
   value: string;
+}
+
+interface ImageTarget {
+  editor: Editor;
+  line: number;
+  match: ImageMatch;
 }
 
 const ALIGNMENT_LABELS: Record<ImageAlignment, string> = {
@@ -46,6 +52,13 @@ export default class ImageAlignmentMenuPlugin extends Plugin {
       hotkeys: [{ modifiers: ["Mod", "Alt"], key: "ArrowRight" }],
       editorCallback: (editor) => this.alignImageAtCursor(editor, "right")
     });
+
+    this.registerDomEvent(
+      document,
+      "contextmenu",
+      (event) => this.handleImageContextMenu(event),
+      true
+    );
   }
 
   private alignImageAtCursor(editor: Editor, alignment: ImageAlignment): void {
@@ -65,6 +78,103 @@ export default class ImageAlignmentMenuPlugin extends Plugin {
     );
     new Notice(`图片已设置为${ALIGNMENT_LABELS[alignment]}。`);
   }
+
+  private handleImageContextMenu(event: MouseEvent): void {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const imageElement = target.closest(".image-embed, .internal-embed.image-embed, img");
+    if (!imageElement || !this.isInMarkdownContent(imageElement)) {
+      return;
+    }
+
+    const imageTarget = this.findImageTargetFromMouseEvent(event);
+    if (!imageTarget) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const menu = new Menu();
+    for (const alignment of ["left", "center", "right"] as const) {
+      menu.addItem((item) => {
+        item
+          .setTitle(`图片${ALIGNMENT_LABELS[alignment]}`)
+          .onClick(() => this.alignImageTarget(imageTarget, alignment));
+      });
+    }
+    menu.showAtMouseEvent(event);
+  }
+
+  private isInMarkdownContent(element: Element): boolean {
+    return Boolean(element.closest(".markdown-source-view, .markdown-preview-view"));
+  }
+
+  private findImageTargetFromMouseEvent(event: MouseEvent): ImageTarget | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view) {
+      return null;
+    }
+
+    const position = getEditorPositionFromMouseEvent(view.editor, event);
+    if (!position) {
+      return null;
+    }
+
+    const line = view.editor.getLine(position.line);
+    const match = findImageNearPosition(line, position.ch);
+    if (!match) {
+      return null;
+    }
+
+    return {
+      editor: view.editor,
+      line: position.line,
+      match
+    };
+  }
+
+  private alignImageTarget(target: ImageTarget, alignment: ImageAlignment): void {
+    target.editor.replaceRange(
+      setImageAlignment(target.match.value, alignment),
+      { line: target.line, ch: target.match.from },
+      { line: target.line, ch: target.match.to }
+    );
+    new Notice(`图片已设置为${ALIGNMENT_LABELS[alignment]}。`);
+  }
+}
+
+function getEditorPositionFromMouseEvent(
+  editor: Editor,
+  event: MouseEvent
+): { line: number; ch: number } | null {
+  const codeMirrorView = (editor as unknown as { cm?: CodeMirrorPositionView }).cm;
+  const offset = codeMirrorView?.posAtCoords({
+    x: event.clientX,
+    y: event.clientY
+  });
+
+  if (typeof offset !== "number") {
+    return editor.getCursor();
+  }
+
+  const line = codeMirrorView.state.doc.lineAt(offset);
+  return {
+    line: line.number - 1,
+    ch: offset - line.from
+  };
+}
+
+interface CodeMirrorPositionView {
+  state: {
+    doc: {
+      lineAt(offset: number): { number: number; from: number };
+    };
+  };
+  posAtCoords(coords: { x: number; y: number }): number | null;
 }
 
 function findImageNearPosition(line: string, ch: number): ImageMatch | null {
