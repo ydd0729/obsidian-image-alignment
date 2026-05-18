@@ -1,7 +1,165 @@
-import { Plugin } from "obsidian";
+import {
+  Editor,
+  MarkdownView,
+  Notice,
+  Plugin,
+  TFile
+} from "obsidian";
+
+type ImageAlignment = "center" | "left" | "right";
+
+interface ImageMatch {
+  from: number;
+  to: number;
+  value: string;
+}
+
+const ALIGNMENT_LABELS: Record<ImageAlignment, string> = {
+  center: "居中",
+  left: "左对齐",
+  right: "右对齐"
+};
+
+const WIKI_IMAGE_PATTERN = /!\[\[([^\]]+)\]\]/g;
+const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\(([^)]+)\)/g;
+const ALIGNMENT_TOKENS = new Set(["left", "right", "center"]);
 
 export default class ImageAlignmentMenuPlugin extends Plugin {
   async onload(): Promise<void> {
-    // Functionality is added in subsequent commits.
+    this.addCommand({
+      id: "align-current-image-left",
+      name: "Set current image left aligned",
+      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "ArrowLeft" }],
+      editorCallback: (editor) => this.alignImageAtCursor(editor, "left")
+    });
+
+    this.addCommand({
+      id: "align-current-image-center",
+      name: "Set current image centered",
+      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "ArrowDown" }],
+      editorCallback: (editor) => this.alignImageAtCursor(editor, "center")
+    });
+
+    this.addCommand({
+      id: "align-current-image-right",
+      name: "Set current image right aligned",
+      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "ArrowRight" }],
+      editorCallback: (editor) => this.alignImageAtCursor(editor, "right")
+    });
   }
+
+  private alignImageAtCursor(editor: Editor, alignment: ImageAlignment): void {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const match = findImageNearPosition(line, cursor.ch);
+
+    if (!match) {
+      new Notice("当前光标所在行没有可设置对齐的图片。");
+      return;
+    }
+
+    editor.replaceRange(
+      setImageAlignment(match.value, alignment),
+      { line: cursor.line, ch: match.from },
+      { line: cursor.line, ch: match.to }
+    );
+    new Notice(`图片已设置为${ALIGNMENT_LABELS[alignment]}。`);
+  }
+}
+
+function findImageNearPosition(line: string, ch: number): ImageMatch | null {
+  const matches = findImagesInLine(line);
+  if (matches.length === 0) {
+    return null;
+  }
+
+  const containing = matches.find((match) => match.from <= ch && ch <= match.to);
+  if (containing) {
+    return containing;
+  }
+
+  return matches.reduce((nearest, match) => {
+    const nearestDistance = distanceToRange(ch, nearest.from, nearest.to);
+    const matchDistance = distanceToRange(ch, match.from, match.to);
+    return matchDistance < nearestDistance ? match : nearest;
+  });
+}
+
+function findImagesInLine(line: string): ImageMatch[] {
+  const matches: ImageMatch[] = [];
+
+  for (const match of line.matchAll(WIKI_IMAGE_PATTERN)) {
+    if (match.index === undefined) {
+      continue;
+    }
+    matches.push({
+      from: match.index,
+      to: match.index + match[0].length,
+      value: match[0]
+    });
+  }
+
+  for (const match of line.matchAll(MARKDOWN_IMAGE_PATTERN)) {
+    if (match.index === undefined) {
+      continue;
+    }
+    matches.push({
+      from: match.index,
+      to: match.index + match[0].length,
+      value: match[0]
+    });
+  }
+
+  return matches.sort((a, b) => a.from - b.from);
+}
+
+function distanceToRange(ch: number, from: number, to: number): number {
+  if (ch < from) {
+    return from - ch;
+  }
+  if (ch > to) {
+    return ch - to;
+  }
+  return 0;
+}
+
+function setImageAlignment(markdown: string, alignment: ImageAlignment): string {
+  if (markdown.startsWith("![[")) {
+    return setWikiImageAlignment(markdown, alignment);
+  }
+  return setMarkdownImageAlignment(markdown, alignment);
+}
+
+function setWikiImageAlignment(markdown: string, alignment: ImageAlignment): string {
+  const inner = markdown.slice(3, -2);
+  const parts = inner.split("|");
+  const target = parts.shift() ?? "";
+  const modifiers = removeAlignmentTokens(parts);
+
+  if (alignment !== "center") {
+    modifiers.push(alignment);
+  }
+
+  return modifiers.length > 0
+    ? `![[${[target, ...modifiers].join("|")}]]`
+    : `![[${target}]]`;
+}
+
+function setMarkdownImageAlignment(markdown: string, alignment: ImageAlignment): string {
+  const match = markdown.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+  if (!match) {
+    return markdown;
+  }
+
+  const altParts = match[1].split("|").filter((part) => part.length > 0);
+  const alt = removeAlignmentTokens(altParts);
+  if (alignment !== "center") {
+    alt.push(alignment);
+  }
+
+  return `![${alt.join("|")}](${match[2]})`;
+}
+
+function removeAlignmentTokens(values: string[]): string[] {
+  return values.filter((value) => !ALIGNMENT_TOKENS.has(value.trim().toLowerCase()));
 }
