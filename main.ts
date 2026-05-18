@@ -40,6 +40,7 @@ const ALIGNMENT_TOKENS = new Set(["left", "right", "center"]);
 
 export default class ImageAlignmentPlugin extends Plugin {
   settings: ImageAlignmentSettings = DEFAULT_SETTINGS;
+  private selectedImageElement: Element | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -48,6 +49,7 @@ export default class ImageAlignmentPlugin extends Plugin {
     this.registerAlignmentCommands();
 
     this.registerDomEvent(document, "contextmenu", (event) => this.captureImageContextMenu(event), true);
+    this.registerDomEvent(document, "mousedown", (event) => this.captureSelectedImage(event), true);
   }
 
   onunload(): void {
@@ -55,7 +57,9 @@ export default class ImageAlignmentPlugin extends Plugin {
   }
 
   private alignSelectedOrCurrentImage(editor: Editor, alignment: ImageAlignment): void {
-    const selectedTarget = findImageInSelection(editor);
+    const selectedTarget =
+      this.findImageTargetFromSelectedElement() ??
+      findImageInSelection(editor);
     if (selectedTarget) {
       this.alignImageTarget(selectedTarget, alignment);
       return;
@@ -105,6 +109,19 @@ export default class ImageAlignmentPlugin extends Plugin {
     }
   }
 
+  private captureSelectedImage(event: MouseEvent): void {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const imageElement = target.closest(".image-embed, .internal-embed.image-embed, img");
+    this.selectedImageElement =
+      imageElement && this.isInMarkdownContent(imageElement)
+        ? imageElement
+        : null;
+  }
+
   private isInMarkdownContent(element: Element): boolean {
     return Boolean(element.closest(".markdown-source-view, .markdown-preview-view"));
   }
@@ -131,6 +148,14 @@ export default class ImageAlignmentPlugin extends Plugin {
     }
 
     return null;
+  }
+
+  private findImageTargetFromSelectedElement(): ImageTarget | null {
+    if (!this.selectedImageElement || !this.selectedImageElement.isConnected) {
+      return null;
+    }
+
+    return this.findImageTargetFromElement(this.selectedImageElement);
   }
 
   private alignImageTarget(target: ImageTarget, alignment: ImageAlignment): void {
@@ -295,40 +320,6 @@ const PLUGIN_TEXT: Record<PluginLanguage, PluginText> = {
     noImage: "当前选区或光标所在行没有可设置对齐的图片。"
   }
 };
-
-function getEditorPositionFromMouseEvent(
-  editor: Editor,
-  event: MouseEvent
-): { line: number; ch: number } | null {
-  const codeMirrorView = (editor as unknown as { cm?: CodeMirrorPositionView }).cm;
-  if (!codeMirrorView) {
-    return editor.getCursor();
-  }
-
-  const offset = codeMirrorView?.posAtCoords({
-    x: event.clientX,
-    y: event.clientY
-  });
-
-  if (typeof offset !== "number") {
-    return editor.getCursor();
-  }
-
-  const line = codeMirrorView.state.doc.lineAt(offset);
-  return {
-    line: line.number - 1,
-    ch: offset - line.from
-  };
-}
-
-interface CodeMirrorPositionView {
-  state: {
-    doc: {
-      lineAt(offset: number): { number: number; from: number };
-    };
-  };
-  posAtCoords(coords: { x: number; y: number }): number | null;
-}
 
 function findImageNearPosition(line: string, ch: number): ImageMatch | null {
   const matches = findImagesInLine(line);
