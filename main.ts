@@ -52,21 +52,21 @@ export default class ImageAlignmentMenuPlugin extends Plugin {
     this.addCommand({
       id: "align-current-image-left",
       name: "Set current image left aligned",
-      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "ArrowLeft" }],
+      hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowLeft" }],
       editorCallback: (editor) => this.alignImageAtCursor(editor, "left")
     });
 
     this.addCommand({
       id: "align-current-image-center",
       name: "Set current image centered",
-      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "ArrowDown" }],
+      hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowDown" }],
       editorCallback: (editor) => this.alignImageAtCursor(editor, "center")
     });
 
     this.addCommand({
       id: "align-current-image-right",
       name: "Set current image right aligned",
-      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "ArrowRight" }],
+      hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowRight" }],
       editorCallback: (editor) => this.alignImageAtCursor(editor, "right")
     });
 
