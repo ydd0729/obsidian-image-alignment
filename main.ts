@@ -111,7 +111,9 @@ export default class ImageAlignmentPlugin extends Plugin {
       return;
     }
 
-    const imageTarget = this.findImageTargetFromMouseEvent(event);
+    const imageTarget =
+      this.findImageTargetFromMouseEvent(event) ??
+      this.findImageTargetFromElement(imageElement);
     if (!imageTarget) {
       return;
     }
@@ -156,6 +158,30 @@ export default class ImageAlignmentPlugin extends Plugin {
       line: position.line,
       match
     };
+  }
+
+  private findImageTargetFromElement(element: Element): ImageTarget | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const imageSource = getImageSourceFromElement(element);
+    if (!view || !imageSource) {
+      return null;
+    }
+
+    for (let lineNumber = 0; lineNumber < view.editor.lineCount(); lineNumber += 1) {
+      const line = view.editor.getLine(lineNumber);
+      const match = findImagesInLine(line).find((candidate) =>
+        imageMatchHasSource(candidate.value, imageSource)
+      );
+      if (match) {
+        return {
+          editor: view.editor,
+          line: lineNumber,
+          match
+        };
+      }
+    }
+
+    return null;
   }
 
   private alignImageTarget(target: ImageTarget, alignment: ImageAlignment): void {
@@ -359,4 +385,32 @@ function setMarkdownImageAlignment(
 
 function removeAlignmentTokens(values: string[]): string[] {
   return values.filter((value) => !ALIGNMENT_TOKENS.has(value.trim().toLowerCase()));
+}
+
+function getImageSourceFromElement(element: Element): string | null {
+  const embed = element.closest(".image-embed") ?? element;
+  const source = embed.getAttribute("src") ?? element.getAttribute("src");
+  if (!source) {
+    return null;
+  }
+
+  return decodeURIComponent(source)
+    .replace(/^app:\/\/[^/]+\//, "")
+    .replace(/^.*[\\/](?=attachments[\\/])/, "")
+    .replace(/\\/g, "/");
+}
+
+function imageMatchHasSource(markdown: string, imageSource: string): boolean {
+  return getImageSourceFromMarkdown(markdown) === imageSource;
+}
+
+function getImageSourceFromMarkdown(markdown: string): string | null {
+  if (markdown.startsWith("![[")) {
+    const inner = markdown.slice(3, -2);
+    const target = inner.split("|")[0] ?? "";
+    return target.replace(/\\/g, "/");
+  }
+
+  const match = markdown.match(/^!\[[^\]]*]\(([^)]+)\)$/);
+  return match ? match[1].replace(/\\/g, "/") : null;
 }
