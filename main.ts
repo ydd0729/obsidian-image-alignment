@@ -53,21 +53,21 @@ export default class ImageAlignmentPlugin extends Plugin {
       id: "align-current-image-left",
       name: "Set current image left aligned",
       hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowLeft" }],
-      editorCallback: (editor) => this.alignImageAtCursor(editor, "left")
+      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "left")
     });
 
     this.addCommand({
       id: "align-current-image-center",
       name: "Set current image centered",
       hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowDown" }],
-      editorCallback: (editor) => this.alignImageAtCursor(editor, "center")
+      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "center")
     });
 
     this.addCommand({
       id: "align-current-image-right",
       name: "Set current image right aligned",
       hotkeys: [{ modifiers: ["Mod", "Alt", "Shift"], key: "ArrowRight" }],
-      editorCallback: (editor) => this.alignImageAtCursor(editor, "right")
+      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "right")
     });
 
     this.registerDomEvent(
@@ -82,7 +82,13 @@ export default class ImageAlignmentPlugin extends Plugin {
     this.clearDefaultAlignmentClasses();
   }
 
-  private alignImageAtCursor(editor: Editor, alignment: ImageAlignment): void {
+  private alignSelectedOrCurrentImage(editor: Editor, alignment: ImageAlignment): void {
+    const selectedTarget = findImageInSelection(editor);
+    if (selectedTarget) {
+      this.alignImageTarget(selectedTarget, alignment);
+      return;
+    }
+
     const cursor = editor.getCursor();
     const line = editor.getLine(cursor.line);
     const match = findImageNearPosition(line, cursor.ch);
@@ -322,6 +328,37 @@ function findImagesInLine(line: string): ImageMatch[] {
   }
 
   return matches.sort((a, b) => a.from - b.from);
+}
+
+function findImageInSelection(editor: Editor): ImageTarget | null {
+  const selection = editor.getSelection();
+  if (!selection) {
+    return null;
+  }
+
+  const from = editor.getCursor("from");
+  const selectedLines = selection.split(/\r?\n/);
+  for (let lineOffset = 0; lineOffset < selectedLines.length; lineOffset += 1) {
+    const matches = findImagesInLine(selectedLines[lineOffset]);
+    const match = matches[0];
+    if (!match) {
+      continue;
+    }
+
+    const line = from.line + lineOffset;
+    const chOffset = lineOffset === 0 ? from.ch : 0;
+    return {
+      editor,
+      line,
+      match: {
+        from: chOffset + match.from,
+        to: chOffset + match.to,
+        value: match.value
+      }
+    };
+  }
+
+  return null;
 }
 
 function distanceToRange(ch: number, from: number, to: number): number {
