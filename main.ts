@@ -222,6 +222,10 @@ function getEditorPositionFromMouseEvent(
   event: MouseEvent
 ): { line: number; ch: number } | null {
   const codeMirrorView = (editor as unknown as { cm?: CodeMirrorPositionView }).cm;
+  if (!codeMirrorView) {
+    return editor.getCursor();
+  }
+
   const offset = codeMirrorView?.posAtCoords({
     x: event.clientX,
     y: event.clientY
