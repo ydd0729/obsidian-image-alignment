@@ -40,6 +40,8 @@ const ALIGNMENT_TOKENS = new Set(["left", "right", "center"]);
 
 export default class ImageAlignmentPlugin extends Plugin {
   settings: ImageAlignmentSettings = DEFAULT_SETTINGS;
+  private lastContextMenuImage: Element | null = null;
+  private lastContextMenuAt = 0;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -67,11 +69,9 @@ export default class ImageAlignmentPlugin extends Plugin {
       editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "right")
     });
 
-    this.registerDomEvent(
-      document,
-      "contextmenu",
-      (event) => this.handleImageContextMenu(event),
-      true
+    this.registerDomEvent(document, "contextmenu", (event) => this.captureImageContextMenu(event), true);
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor) => this.addImageAlignmentMenuItems(menu, editor))
     );
   }
 
@@ -103,7 +103,7 @@ export default class ImageAlignmentPlugin extends Plugin {
     this.showAlignedNotice(alignment);
   }
 
-  private handleImageContextMenu(event: MouseEvent): void {
+  private captureImageContextMenu(event: MouseEvent): void {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
       return;
@@ -114,17 +114,20 @@ export default class ImageAlignmentPlugin extends Plugin {
       return;
     }
 
+    this.lastContextMenuImage = imageElement;
+    this.lastContextMenuAt = Date.now();
+  }
+
+  private addImageAlignmentMenuItems(menu: Menu, editor: Editor): void {
     const imageTarget =
-      this.findImageTargetFromMouseEvent(event) ??
-      this.findImageTargetFromElement(imageElement);
+      this.findImageTargetFromRecentContextMenu() ??
+      findImageInSelection(editor) ??
+      this.findImageTargetAtCursor(editor);
     if (!imageTarget) {
       return;
     }
 
-    event.preventDefault();
-    event.stopPropagation();
-
-    const menu = new Menu();
+    menu.addSeparator();
     for (const alignment of ["left", "center", "right"] as const) {
       menu.addItem((item) => {
         item
@@ -132,35 +135,33 @@ export default class ImageAlignmentPlugin extends Plugin {
           .onClick(() => this.alignImageTarget(imageTarget, alignment));
       });
     }
-    menu.showAtMouseEvent(event);
   }
 
   private isInMarkdownContent(element: Element): boolean {
     return Boolean(element.closest(".markdown-source-view, .markdown-preview-view"));
   }
 
-  private findImageTargetFromMouseEvent(event: MouseEvent): ImageTarget | null {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) {
-      return null;
-    }
-
-    const position = getEditorPositionFromMouseEvent(view.editor, event);
-    if (!position) {
-      return null;
-    }
-
-    const line = view.editor.getLine(position.line);
-    const match = findImageNearPosition(line, position.ch);
+  private findImageTargetAtCursor(editor: Editor): ImageTarget | null {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const match = findImageNearPosition(line, cursor.ch);
     if (!match) {
       return null;
     }
 
     return {
-      editor: view.editor,
-      line: position.line,
+      editor,
+      line: cursor.line,
       match
     };
+  }
+
+  private findImageTargetFromRecentContextMenu(): ImageTarget | null {
+    if (!this.lastContextMenuImage || Date.now() - this.lastContextMenuAt > 1000) {
+      return null;
+    }
+
+    return this.findImageTargetFromElement(this.lastContextMenuImage);
   }
 
   private findImageTargetFromElement(element: Element): ImageTarget | null {
