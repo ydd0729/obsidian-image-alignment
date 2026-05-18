@@ -7,6 +7,8 @@ import {
   Plugin,
   PluginSettingTab,
   Setting,
+  type Hotkey,
+  type Modifier,
 } from "obsidian";
 
 type ImageAlignment = "center" | "left" | "right";
@@ -47,37 +49,14 @@ const ALIGNMENT_TOKENS = new Set(["left", "right", "center"]);
 
 export default class ImageAlignmentPlugin extends Plugin {
   settings: ImageAlignmentSettings = DEFAULT_SETTINGS;
-  private lastContextMenuImage: Element | null = null;
-  private lastContextMenuAt = 0;
 
   async onload(): Promise<void> {
     await this.loadSettings();
     this.addSettingTab(new ImageAlignmentSettingTab(this.app, this));
     this.applyDefaultAlignmentClass();
-
-    this.addCommand({
-      id: "align-current-image-left",
-      name: this.getText().commandLeft,
-      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "left")
-    });
-
-    this.addCommand({
-      id: "align-current-image-center",
-      name: this.getText().commandCenter,
-      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "center")
-    });
-
-    this.addCommand({
-      id: "align-current-image-right",
-      name: this.getText().commandRight,
-      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "right")
-    });
+    this.registerAlignmentCommands();
 
     this.registerDomEvent(document, "contextmenu", (event) => this.captureImageContextMenu(event), true);
-    this.registerDomEvent(document, "keydown", (event) => this.handleConfiguredHotkey(event), true);
-    this.registerEvent(
-      this.app.workspace.on("editor-menu", (menu, editor) => this.addImageAlignmentMenuItems(menu, editor))
-    );
   }
 
   onunload(): void {
@@ -108,22 +87,6 @@ export default class ImageAlignmentPlugin extends Plugin {
     this.showAlignedNotice(alignment);
   }
 
-  private handleConfiguredHotkey(event: KeyboardEvent): void {
-    const alignment = getAlignmentForHotkey(this.settings.hotkeys, event);
-    if (!alignment) {
-      return;
-    }
-
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    this.alignSelectedOrCurrentImage(view.editor, alignment);
-  }
-
   private captureImageContextMenu(event: MouseEvent): void {
     const target = event.target;
     if (!(target instanceof HTMLElement)) {
@@ -135,19 +98,12 @@ export default class ImageAlignmentPlugin extends Plugin {
       return;
     }
 
-    this.lastContextMenuImage = imageElement;
-    this.lastContextMenuAt = Date.now();
-  }
-
-  private addImageAlignmentMenuItems(menu: Menu, editor: Editor): void {
-    const imageTarget =
-      this.findImageTargetFromRecentContextMenu() ??
-      findImageInSelection(editor) ??
-      this.findImageTargetAtCursor(editor);
+    const imageTarget = this.findImageTargetFromElement(imageElement);
     if (!imageTarget) {
       return;
     }
 
+    const menu = Menu.forEvent(event);
     menu.addSeparator();
     for (const alignment of ["left", "center", "right"] as const) {
       menu.addItem((item) => {
@@ -160,29 +116,6 @@ export default class ImageAlignmentPlugin extends Plugin {
 
   private isInMarkdownContent(element: Element): boolean {
     return Boolean(element.closest(".markdown-source-view, .markdown-preview-view"));
-  }
-
-  private findImageTargetAtCursor(editor: Editor): ImageTarget | null {
-    const cursor = editor.getCursor();
-    const line = editor.getLine(cursor.line);
-    const match = findImageNearPosition(line, cursor.ch);
-    if (!match) {
-      return null;
-    }
-
-    return {
-      editor,
-      line: cursor.line,
-      match
-    };
-  }
-
-  private findImageTargetFromRecentContextMenu(): ImageTarget | null {
-    if (!this.lastContextMenuImage || Date.now() - this.lastContextMenuAt > 1000) {
-      return null;
-    }
-
-    return this.findImageTargetFromElement(this.lastContextMenuImage);
   }
 
   private findImageTargetFromElement(element: Element): ImageTarget | null {
@@ -226,6 +159,33 @@ export default class ImageAlignmentPlugin extends Plugin {
     return PLUGIN_TEXT[this.settings.language];
   }
 
+  registerAlignmentCommands(): void {
+    for (const alignment of ["left", "center", "right"] as const) {
+      this.removeCommand(getAlignmentCommandId(alignment));
+    }
+
+    this.addCommand({
+      id: getAlignmentCommandId("left"),
+      name: this.getText().commandLeft,
+      hotkeys: getCommandHotkeys(this.settings.hotkeys.left),
+      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "left")
+    });
+
+    this.addCommand({
+      id: getAlignmentCommandId("center"),
+      name: this.getText().commandCenter,
+      hotkeys: getCommandHotkeys(this.settings.hotkeys.center),
+      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "center")
+    });
+
+    this.addCommand({
+      id: getAlignmentCommandId("right"),
+      name: this.getText().commandRight,
+      hotkeys: getCommandHotkeys(this.settings.hotkeys.right),
+      editorCallback: (editor) => this.alignSelectedOrCurrentImage(editor, "right")
+    });
+  }
+
   async loadSettings(): Promise<void> {
     const loadedSettings = await this.loadData();
     this.settings = {
@@ -241,6 +201,7 @@ export default class ImageAlignmentPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
     this.applyDefaultAlignmentClass();
+    this.registerAlignmentCommands();
   }
 
   applyDefaultAlignmentClass(): void {
@@ -551,22 +512,6 @@ function distanceToRange(ch: number, from: number, to: number): number {
   return 0;
 }
 
-function getAlignmentForHotkey(
-  hotkeys: AlignmentHotkeys,
-  event: KeyboardEvent
-): ImageAlignment | null {
-  const pressedHotkey = hotkeyFromEvent(event);
-  if (!pressedHotkey) {
-    return null;
-  }
-
-  return (
-    (["left", "center", "right"] as const).find(
-      (alignment) => hotkeys[alignment] === pressedHotkey
-    ) ?? null
-  );
-}
-
 function hotkeyFromEvent(event: KeyboardEvent): string | null {
   const key = normalizeHotkeyKey(event.key);
   if (!key) {
@@ -601,6 +546,37 @@ function normalizeHotkeyKey(key: string): string | null {
 
 function formatHotkey(hotkey: string, text: PluginText): string {
   return hotkey || text.noHotkey;
+}
+
+function getAlignmentCommandId(alignment: ImageAlignment): string {
+  return `align-current-image-${alignment}`;
+}
+
+function getCommandHotkeys(hotkey: string): Hotkey[] {
+  const parsedHotkey = parseHotkey(hotkey);
+  return parsedHotkey ? [parsedHotkey] : [];
+}
+
+function parseHotkey(hotkey: string): Hotkey | null {
+  const parts = hotkey.split("+").filter((part) => part.length > 0);
+  const key = parts.pop();
+  if (!key) {
+    return null;
+  }
+
+  const modifiers = parts.filter(isModifier);
+  if (modifiers.length !== parts.length) {
+    return null;
+  }
+
+  return {
+    key,
+    modifiers
+  };
+}
+
+function isModifier(value: string): value is Modifier {
+  return ["Mod", "Ctrl", "Meta", "Shift", "Alt"].includes(value);
 }
 
 function setImageAlignment(
