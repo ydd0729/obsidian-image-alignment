@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0
+## 1.0.0
 
 - Add image alignment actions for left, center, and right alignment.
 - Add image context menu items.

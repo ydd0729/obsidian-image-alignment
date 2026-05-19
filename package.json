@@ -1,6 +1,7 @@
 {
   "name": "image-alignment",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "packageManager": "pnpm@11.1.2",
   "private": true,
   "scripts": {
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs"
