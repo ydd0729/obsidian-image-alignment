@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+
+- Update plugin author metadata to Dong Yang.
+
 ## 1.0.2
 
 - Follow Obsidian's app language automatically for plugin text.
