@@ -43,6 +43,44 @@ jobs:
             exit 1
           fi
 
+      - name: Extract release notes
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const tag = process.env.GITHUB_REF.replace("refs/tags/", "");
+          const lines = fs.readFileSync("CHANGELOG.md", "utf8").split(/\r?\n/);
+          const notesLines = [];
+          let isTargetSection = false;
+
+          for (const line of lines) {
+            if (line === `## ${tag}`) {
+              isTargetSection = true;
+              continue;
+            }
+            if (isTargetSection && line.startsWith("## ")) {
+              break;
+            }
+            if (isTargetSection) {
+              notesLines.push(line);
+            }
+          }
+
+          const notes = notesLines.join("\n").trim();
+
+          if (!notes) {
+            process.exitCode = 1;
+          } else {
+            fs.writeFileSync("release-notes.md", `${notes}\n`);
+          }
+          NODE
+
+          if [ ! -s release-notes.md ]; then
+            echo "No release notes found for $tag in CHANGELOG.md"
+            exit 1
+          fi
+
       - name: Generate artifact attestations
         uses: actions/attest@v4
         with:
@@ -50,3 +88,15 @@ jobs:
             main.js
             manifest.json
             styles.css
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" \
+            --title "$tag" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            --latest \
+            main.js manifest.json styles.css
