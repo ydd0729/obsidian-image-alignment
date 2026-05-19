@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5
+
+- Merge duplicate image alignment style selectors.
+- Add project-specific maintenance notes for future agent runs.
+
 ## 1.0.4
 
 - Simplify image alignment styles and remove unnecessary runtime class synchronization.
