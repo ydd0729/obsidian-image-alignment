@@ -43,20 +43,6 @@ jobs:
             exit 1
           fi
 
-      - name: Create draft release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          assets="main.js manifest.json"
-          if [ -f styles.css ]; then
-            assets="$assets styles.css"
-          fi
-          gh release create "${GITHUB_REF#refs/tags/}" \
-            --title "${GITHUB_REF#refs/tags/}" \
-            --verify-tag \
-            --draft \
-            $assets
-
       - name: Generate artifact attestations
         uses: actions/attest@v4
         with:
