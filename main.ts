@@ -40,14 +40,11 @@ const ALIGNMENT_TOKENS = new Set(["left", "right", "center"]);
 export default class ImageAlignmentPlugin extends Plugin {
   settings: ImageAlignmentSettings = DEFAULT_SETTINGS;
   private selectedImageElement: Element | null = null;
-  private livePreviewObserver: MutationObserver | null = null;
-  private syncLivePreviewTimeout: number | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
     this.addSettingTab(new ImageAlignmentSettingTab(this.app, this));
     this.applyDefaultAlignmentClass();
-    this.startLivePreviewAlignmentSync();
     this.registerAlignmentCommands();
 
     this.registerDomEvent(document, "contextmenu", (event) => this.captureImageContextMenu(event), true);
@@ -55,8 +52,6 @@ export default class ImageAlignmentPlugin extends Plugin {
   }
 
   onunload(): void {
-    this.stopLivePreviewAlignmentSync();
-    this.clearLivePreviewAlignmentClasses();
     this.clearDefaultAlignmentClasses();
   }
 
@@ -84,7 +79,6 @@ export default class ImageAlignmentPlugin extends Plugin {
       { line: cursor.line, ch: match.to }
     );
     this.showAlignedNotice(alignment);
-    this.scheduleLivePreviewAlignmentSync();
   }
 
   private captureImageContextMenu(event: MouseEvent): void {
@@ -170,7 +164,6 @@ export default class ImageAlignmentPlugin extends Plugin {
       { line: target.line, ch: target.match.to }
     );
     this.showAlignedNotice(alignment);
-    this.scheduleLivePreviewAlignmentSync();
   }
 
   private showAlignedNotice(alignment: ImageAlignment): void {
@@ -218,7 +211,6 @@ export default class ImageAlignmentPlugin extends Plugin {
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
     this.applyDefaultAlignmentClass();
-    this.scheduleLivePreviewAlignmentSync();
     this.registerAlignmentCommands();
   }
 
@@ -231,63 +223,6 @@ export default class ImageAlignmentPlugin extends Plugin {
     for (const alignment of ["center", "left", "right"] as const) {
       document.body.classList.remove(`image-alignment-default-${alignment}`);
       document.body.classList.remove(`image-alignment-menu-default-${alignment}`);
-    }
-  }
-
-  private startLivePreviewAlignmentSync(): void {
-    this.livePreviewObserver = new MutationObserver(() => this.scheduleLivePreviewAlignmentSync());
-    this.livePreviewObserver.observe(document.body, {
-      attributes: true,
-      attributeFilter: ["alt"],
-      childList: true,
-      subtree: true
-    });
-    this.scheduleLivePreviewAlignmentSync();
-  }
-
-  private stopLivePreviewAlignmentSync(): void {
-    this.livePreviewObserver?.disconnect();
-    this.livePreviewObserver = null;
-    if (this.syncLivePreviewTimeout !== null) {
-      window.clearTimeout(this.syncLivePreviewTimeout);
-      this.syncLivePreviewTimeout = null;
-    }
-  }
-
-  private scheduleLivePreviewAlignmentSync(): void {
-    if (this.syncLivePreviewTimeout !== null) {
-      return;
-    }
-
-    this.syncLivePreviewTimeout = window.setTimeout(() => {
-      this.syncLivePreviewTimeout = null;
-      this.syncLivePreviewAlignmentClasses();
-    }, 0);
-  }
-
-  private syncLivePreviewAlignmentClasses(): void {
-    const blocks = document.querySelectorAll(
-      ".markdown-source-view.mod-cm6.is-live-preview .cm-embed-block"
-    );
-
-    for (const block of Array.from(blocks)) {
-      const imageEmbed = block.querySelector(".image-embed");
-      if (!imageEmbed) {
-        clearElementAlignmentClasses(block);
-        continue;
-      }
-
-      setElementAlignmentClass(block, getElementAlignment(imageEmbed, this.settings.defaultAlignment));
-    }
-  }
-
-  private clearLivePreviewAlignmentClasses(): void {
-    const blocks = document.querySelectorAll(
-      ".markdown-source-view.mod-cm6.is-live-preview .cm-embed-block"
-    );
-
-    for (const block of Array.from(blocks)) {
-      clearElementAlignmentClasses(block);
     }
   }
 }
@@ -510,51 +445,6 @@ function setMarkdownImageAlignment(
 
 function removeAlignmentTokens(values: string[]): string[] {
   return values.filter((value) => !ALIGNMENT_TOKENS.has(value.trim().toLowerCase()));
-}
-
-function getElementAlignment(element: Element, defaultAlignment: ImageAlignment): ImageAlignment {
-  const explicitAlignment = getExplicitAlignmentFromAlt(element.getAttribute("alt") ?? "");
-  return explicitAlignment ?? defaultAlignment;
-}
-
-function getExplicitAlignmentFromAlt(alt: string): ImageAlignment | null {
-  for (const token of alt.split("|")) {
-    const normalizedToken = token.trim().toLowerCase();
-    if (isImageAlignment(normalizedToken)) {
-      return normalizedToken;
-    }
-  }
-
-  return null;
-}
-
-function isImageAlignment(value: string): value is ImageAlignment {
-  return ALIGNMENT_TOKENS.has(value);
-}
-
-function setElementAlignmentClass(element: Element, alignment: ImageAlignment): void {
-  if (getElementAlignmentClass(element) === alignment) {
-    return;
-  }
-
-  clearElementAlignmentClasses(element);
-  element.classList.add(`image-alignment-live-preview-${alignment}`);
-}
-
-function getElementAlignmentClass(element: Element): ImageAlignment | null {
-  for (const alignment of ["center", "left", "right"] as const) {
-    if (element.classList.contains(`image-alignment-live-preview-${alignment}`)) {
-      return alignment;
-    }
-  }
-
-  return null;
-}
-
-function clearElementAlignmentClasses(element: Element): void {
-  for (const alignment of ["center", "left", "right"] as const) {
-    element.classList.remove(`image-alignment-live-preview-${alignment}`);
-  }
 }
 
 function getImageSourceFromElement(element: Element): string | null {

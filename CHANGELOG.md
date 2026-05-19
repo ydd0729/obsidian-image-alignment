@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+
+- Simplify image alignment styles and remove unnecessary runtime class synchronization.
+- Keep Live Preview parent block alignment in CSS with narrow `:has()` selectors.
+
 ## 1.0.3
 
 - Update plugin author metadata to Dong Yang.
