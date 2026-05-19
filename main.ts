@@ -7,6 +7,7 @@ import {
   Plugin,
   PluginSettingTab,
   Setting,
+  getLanguage,
 } from "obsidian";
 
 type ImageAlignment = "center" | "left" | "right";
@@ -26,12 +27,10 @@ interface ImageTarget {
 
 interface ImageAlignmentSettings {
   defaultAlignment: ImageAlignment;
-  language: PluginLanguage;
 }
 
 const DEFAULT_SETTINGS: ImageAlignmentSettings = {
-  defaultAlignment: "center",
-  language: "en"
+  defaultAlignment: "center"
 };
 
 const WIKI_IMAGE_PATTERN = /!\[\[([^\]]+)\]\]/g;
@@ -179,7 +178,7 @@ export default class ImageAlignmentPlugin extends Plugin {
   }
 
   getText(): PluginText {
-    return PLUGIN_TEXT[this.settings.language];
+    return PLUGIN_TEXT[getPluginLanguage()];
   }
 
   registerAlignmentCommands(): void {
@@ -303,21 +302,6 @@ class ImageAlignmentSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName(this.plugin.getText().languageName)
-      .setDesc(this.plugin.getText().languageDesc)
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOption("en", "English")
-          .addOption("zh", "中文")
-          .setValue(this.plugin.settings.language)
-          .onChange(async (value) => {
-            this.plugin.settings.language = value as PluginLanguage;
-            await this.plugin.saveSettings();
-            this.display();
-          });
-      });
-
-    new Setting(containerEl)
       .setName(this.plugin.getText().defaultAlignmentName)
       .setDesc(this.plugin.getText().defaultAlignmentDesc)
       .addDropdown((dropdown) => {
@@ -342,8 +326,6 @@ interface PluginText {
   commandRight: string;
   defaultAlignmentDesc: string;
   defaultAlignmentName: string;
-  languageDesc: string;
-  languageName: string;
   menuTitle(alignment: ImageAlignment): string;
   noImage: string;
 }
@@ -362,8 +344,6 @@ const PLUGIN_TEXT: Record<PluginLanguage, PluginText> = {
     commandRight: "Set current image right aligned",
     defaultAlignmentDesc: "Images without an explicit alignment marker use this default.",
     defaultAlignmentName: "Default image alignment",
-    languageDesc: "Controls the plugin menus, settings, commands, and notices.",
-    languageName: "Language",
     menuTitle: (alignment) => `Align image ${PLUGIN_TEXT.en.alignmentLabels[alignment].toLowerCase()}`,
     noImage: "No image found on the current selection or cursor line."
   },
@@ -379,12 +359,14 @@ const PLUGIN_TEXT: Record<PluginLanguage, PluginText> = {
     commandRight: "将当前图片右对齐",
     defaultAlignmentDesc: "没有显式对齐标记的图片会使用这个默认值。",
     defaultAlignmentName: "默认图片对齐",
-    languageDesc: "控制插件菜单、设置、命令和通知的显示语言。",
-    languageName: "语言",
     menuTitle: (alignment) => `图片${PLUGIN_TEXT.zh.alignmentLabels[alignment]}`,
     noImage: "当前选区或光标所在行没有可设置对齐的图片。"
   }
 };
+
+function getPluginLanguage(): PluginLanguage {
+  return getLanguage().toLowerCase().startsWith("zh") ? "zh" : "en";
+}
 
 function findImageNearPosition(line: string, ch: number): ImageMatch | null {
   const matches = findImagesInLine(line);

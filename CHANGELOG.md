@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2
+
+- Follow Obsidian's app language automatically for plugin text.
+- Remove the manual language option from plugin settings.
+- Trim non-core language feature text from the README.
+
 ## 1.0.1
 
 - Remove broad parent-dependent selectors from Live Preview image alignment styles.

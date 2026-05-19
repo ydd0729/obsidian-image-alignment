@@ -8,7 +8,6 @@ Image Alignment adds quick alignment controls for images in Markdown notes. It w
 - Align the selected image with commands and default hotkeys.
 - Set a default alignment for images that do not have an explicit alignment marker.
 - Preserve existing image size markers such as `|300` when changing alignment.
-- Use English or Chinese plugin text.
 
 ## Usage
 
@@ -49,7 +48,6 @@ When an image matches the default alignment configured in the plugin settings, t
 
 ## Settings
 
-- **Language**: Choose English or Chinese plugin text.
 - **Default image alignment**: Choose the alignment used for images without an explicit `left`, `center`, or `right` marker.
 
 ## Notes And Limitations
